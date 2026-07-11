@@ -100,6 +100,12 @@ wss.on('connection', (ws) => {
       player.y = clamp(Number(message.y), 0, ROOM_HEIGHT - CHAR_HEIGHT);
 
       broadcast({ type: 'player_moved', id: ws.id, x: player.x, y: player.y }, ws.id);
+    } else if (message.type === 'chat') {
+      if (!players.has(ws.id)) return;
+      const text = typeof message.text === 'string' ? message.text.trim() : '';
+      if (!text) return;
+
+      broadcast({ type: 'player_chat', id: ws.id, text }, ws.id);
     }
   });
 

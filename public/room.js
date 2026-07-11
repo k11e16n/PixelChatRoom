@@ -5,10 +5,18 @@ const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
 const CHAR_HEIGHT = GRID_H * CHAR_PIXEL_SIZE;
 const SPEED = 120; // px/sec
 const MOVE_SEND_INTERVAL = 50; // ms
+const BUBBLE_DURATION = 4500; // ms
+const BUBBLE_FADE_DURATION = 500; // ms
 
 const FLOOR_COLOR = '#dcd3c0';
 const FURNITURE_FILL = '#8a6642';
 const FURNITURE_STROKE = '#5c4429';
+const BUBBLE_FILL = '#ffffff';
+const BUBBLE_STROKE = '#1a1a1a';
+const BUBBLE_TEXT_COLOR = '#1a1a1a';
+const BUBBLE_PADDING_X = 4;
+const BUBBLE_HEIGHT = 12;
+const BUBBLE_GAP = 4;
 
 const MOVE_KEYS = {
   KeyW: 'up', ArrowUp: 'up',
@@ -26,7 +34,7 @@ function collidesAt(x, y) {
   return FURNITURE.some((furniture) => rectsOverlap(box, furniture));
 }
 
-export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
+export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onMove }) {
   const player = { x: DEFAULT_SPAWN.x, y: DEFAULT_SPAWN.y };
   const pressed = new Set();
 
@@ -34,6 +42,8 @@ export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
   for (const other of initialPlayers) {
     otherPlayers.set(other.id, { appearance: other.appearance, x: other.x, y: other.y });
   }
+
+  const bubbles = new Map();
 
   let lastSentAt = 0;
   let lastSentX = player.x;
@@ -71,6 +81,36 @@ export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
     }
   }
 
+  function drawBubble(id, x, y) {
+    const bubble = bubbles.get(id);
+    if (!bubble) return;
+
+    const remaining = bubble.expiresAt - performance.now();
+    if (remaining <= 0) {
+      bubbles.delete(id);
+      return;
+    }
+
+    const alpha = remaining < BUBBLE_FADE_DURATION ? remaining / BUBBLE_FADE_DURATION : 1;
+    const textWidth = ctx.measureText(bubble.text).width;
+    const boxWidth = textWidth + BUBBLE_PADDING_X * 2;
+    const centerX = x + CHAR_WIDTH / 2;
+    const boxX = Math.min(Math.max(centerX - boxWidth / 2, 0), ROOM_WIDTH - boxWidth);
+    const boxY = y - BUBBLE_HEIGHT - BUBBLE_GAP;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = BUBBLE_FILL;
+    ctx.strokeStyle = BUBBLE_STROKE;
+    ctx.fillRect(boxX, boxY, boxWidth, BUBBLE_HEIGHT);
+    ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, BUBBLE_HEIGHT - 1);
+    ctx.fillStyle = BUBBLE_TEXT_COLOR;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(bubble.text, boxX + boxWidth / 2, boxY + BUBBLE_HEIGHT / 2 + 1);
+    ctx.restore();
+  }
+
   function render() {
     ctx.fillStyle = FLOOR_COLOR;
     ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
@@ -82,11 +122,15 @@ export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
       ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     }
 
-    for (const other of otherPlayers.values()) {
+    ctx.font = '8px sans-serif';
+
+    for (const [id, other] of otherPlayers) {
       drawCharacter(ctx, other.appearance, other.x, other.y, CHAR_PIXEL_SIZE);
+      drawBubble(id, other.x, other.y);
     }
 
     drawCharacter(ctx, selfAppearance, player.x, player.y, CHAR_PIXEL_SIZE);
+    drawBubble(selfId, player.x, player.y);
   }
 
   function maybeSendMove(timestamp) {
@@ -127,6 +171,9 @@ export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
     },
     removePlayer(id) {
       otherPlayers.delete(id);
+    },
+    showBubble(id, text) {
+      bubbles.set(id, { text, expiresAt: performance.now() + BUBBLE_DURATION });
     },
   };
 }
