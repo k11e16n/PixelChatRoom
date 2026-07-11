@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
+import { FURNITURE, DEFAULT_SPAWN } from './public/room-config.js';
 
 const PORT = 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,7 +55,7 @@ wss.on('connection', (ws) => {
     if (message.type === 'join') {
       const trimmedName = typeof message.name === 'string' ? message.name.trim() : '';
       const name = trimmedName || `玩家${randomUUID().slice(0, 4)}`;
-      const player = { id: ws.id, name, appearance: message.appearance, x: 0, y: 0 };
+      const player = { id: ws.id, name, appearance: message.appearance, ...DEFAULT_SPAWN };
       players.set(ws.id, player);
 
       console.log(`[player-join] ${ws.id} name="${name}" appearance=${JSON.stringify(message.appearance)}`);
@@ -63,7 +64,7 @@ wss.on('connection', (ws) => {
         type: 'room_state',
         self_id: ws.id,
         players: [...players.values()],
-        furniture: [],
+        furniture: FURNITURE,
       }));
     }
   });

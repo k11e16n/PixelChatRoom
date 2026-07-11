@@ -10,6 +10,12 @@
       height: 128px;
       border: 1px solid #999;
     }
+    #room-canvas {
+      image-rendering: pixelated;
+      width: 640px;
+      height: 480px;
+      border: 1px solid #999;
+    }
   </style>
 </head>
 <body>
@@ -34,7 +40,7 @@
   </section>
 
   <section id="room-placeholder" hidden>
-    <p id="room-info"></p>
+    <canvas id="room-canvas" width="320" height="240"></canvas>
   </section>
 
   <script type="module" src="client.js"></script>

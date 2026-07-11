@@ -1,9 +1,11 @@
 import { initCharacterSelect, setSubmitEnabled, hideCharacterSelect } from './character-select.js';
+import { initRoom } from './room.js';
 
 const statusEl = document.getElementById('status');
 const roomPlaceholder = document.getElementById('room-placeholder');
-const roomInfoEl = document.getElementById('room-info');
+const roomCanvas = document.getElementById('room-canvas');
 const socket = new WebSocket(`ws://${location.host}`);
+let pendingAppearance = null;
 
 socket.onopen = () => {
   console.log('WebSocket connected');
@@ -29,12 +31,13 @@ socket.onmessage = (event) => {
   if (message.type === 'room_state') {
     hideCharacterSelect();
     roomPlaceholder.hidden = false;
-    roomInfoEl.textContent = `已進入房間（self_id: ${message.self_id}）`;
+    initRoom({ ctx: roomCanvas.getContext('2d'), selfAppearance: pendingAppearance });
   }
 };
 
 initCharacterSelect({
   onSubmit: ({ name, appearance }) => {
+    pendingAppearance = appearance;
     socket.send(JSON.stringify({ type: 'join', name, appearance }));
   },
 });
