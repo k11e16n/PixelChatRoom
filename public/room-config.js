@@ -10,3 +10,5 @@ export const FURNITURE = [
 ];
 
 export const DEFAULT_SPAWN = { x: 160, y: 180 };
+
+export const MAX_PLAYERS = 5;

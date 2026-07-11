@@ -10,6 +10,7 @@ const socket = new WebSocket(`ws://${location.host}`);
 let pendingAppearance = null;
 let roomHandle = null;
 let selfId = null;
+let rejected = false;
 
 socket.onopen = () => {
   console.log('WebSocket connected');
@@ -19,7 +20,9 @@ socket.onopen = () => {
 
 socket.onclose = () => {
   console.log('WebSocket disconnected');
-  statusEl.textContent = '已斷線';
+  if (!rejected) {
+    statusEl.textContent = '已斷線';
+  }
   setSubmitEnabled(false);
 };
 
@@ -51,6 +54,9 @@ socket.onmessage = (event) => {
     roomHandle?.removePlayer(message.id);
   } else if (message.type === 'player_chat') {
     roomHandle?.showBubble(message.id, message.text);
+  } else if (message.type === 'room_full') {
+    rejected = true;
+    statusEl.textContent = message.message;
   }
 };
 

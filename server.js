@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { FURNITURE, DEFAULT_SPAWN, ROOM_WIDTH, ROOM_HEIGHT, CHAR_PIXEL_SIZE } from './public/room-config.js';
+import { FURNITURE, DEFAULT_SPAWN, ROOM_WIDTH, ROOM_HEIGHT, CHAR_PIXEL_SIZE, MAX_PLAYERS } from './public/room-config.js';
 import { GRID_W, GRID_H } from './public/character.js';
 
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
@@ -59,6 +59,14 @@ function broadcast(message, excludeId) {
 
 wss.on('connection', (ws) => {
   ws.id = randomUUID();
+
+  if (players.size >= MAX_PLAYERS) {
+    console.log(`[reject] ${ws.id} room full (players: ${players.size})`);
+    ws.send(JSON.stringify({ type: 'room_full', message: `房間已滿（最多 ${MAX_PLAYERS} 人）` }));
+    ws.close();
+    return;
+  }
+
   console.log(`[join] ${ws.id} connected (total: ${wss.clients.size})`);
 
   ws.on('message', (data) => {
