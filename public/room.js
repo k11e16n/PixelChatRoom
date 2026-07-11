@@ -4,6 +4,7 @@ import { ROOM_WIDTH, ROOM_HEIGHT, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE } fr
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
 const CHAR_HEIGHT = GRID_H * CHAR_PIXEL_SIZE;
 const SPEED = 120; // px/sec
+const MOVE_SEND_INTERVAL = 50; // ms
 
 const FLOOR_COLOR = '#dcd3c0';
 const FURNITURE_FILL = '#8a6642';
@@ -25,9 +26,18 @@ function collidesAt(x, y) {
   return FURNITURE.some((furniture) => rectsOverlap(box, furniture));
 }
 
-export function initRoom({ ctx, selfAppearance }) {
+export function initRoom({ ctx, selfAppearance, initialPlayers = [], onMove }) {
   const player = { x: DEFAULT_SPAWN.x, y: DEFAULT_SPAWN.y };
   const pressed = new Set();
+
+  const otherPlayers = new Map();
+  for (const other of initialPlayers) {
+    otherPlayers.set(other.id, { appearance: other.appearance, x: other.x, y: other.y });
+  }
+
+  let lastSentAt = 0;
+  let lastSentX = player.x;
+  let lastSentY = player.y;
 
   window.addEventListener('keydown', (event) => {
     const direction = MOVE_KEYS[event.code];
@@ -72,7 +82,22 @@ export function initRoom({ ctx, selfAppearance }) {
       ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     }
 
+    for (const other of otherPlayers.values()) {
+      drawCharacter(ctx, other.appearance, other.x, other.y, CHAR_PIXEL_SIZE);
+    }
+
     drawCharacter(ctx, selfAppearance, player.x, player.y, CHAR_PIXEL_SIZE);
+  }
+
+  function maybeSendMove(timestamp) {
+    if (!onMove) return;
+    if (player.x === lastSentX && player.y === lastSentY) return;
+    if (timestamp - lastSentAt < MOVE_SEND_INTERVAL) return;
+
+    lastSentAt = timestamp;
+    lastSentX = player.x;
+    lastSentY = player.y;
+    onMove(player.x, player.y);
   }
 
   let lastTimestamp = null;
@@ -83,8 +108,25 @@ export function initRoom({ ctx, selfAppearance }) {
     }
     lastTimestamp = timestamp;
     render();
+    maybeSendMove(timestamp);
     requestAnimationFrame(loop);
   }
 
   requestAnimationFrame(loop);
+
+  return {
+    addPlayer(id, appearance, x, y) {
+      otherPlayers.set(id, { appearance, x, y });
+    },
+    updatePlayerPosition(id, x, y) {
+      const other = otherPlayers.get(id);
+      if (other) {
+        other.x = x;
+        other.y = y;
+      }
+    },
+    removePlayer(id) {
+      otherPlayers.delete(id);
+    },
+  };
 }

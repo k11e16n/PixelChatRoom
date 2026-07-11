@@ -4,7 +4,15 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { FURNITURE, DEFAULT_SPAWN } from './public/room-config.js';
+import { FURNITURE, DEFAULT_SPAWN, ROOM_WIDTH, ROOM_HEIGHT, CHAR_PIXEL_SIZE } from './public/room-config.js';
+import { GRID_W, GRID_H } from './public/character.js';
+
+const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
+const CHAR_HEIGHT = GRID_H * CHAR_PIXEL_SIZE;
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 
 const PORT = 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -40,6 +48,15 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 const players = new Map();
 
+function broadcast(message, excludeId) {
+  const data = JSON.stringify(message);
+  for (const client of wss.clients) {
+    if (client.readyState === client.OPEN && client.id !== excludeId && players.has(client.id)) {
+      client.send(data);
+    }
+  }
+}
+
 wss.on('connection', (ws) => {
   ws.id = randomUUID();
   console.log(`[join] ${ws.id} connected (total: ${wss.clients.size})`);
@@ -66,6 +83,23 @@ wss.on('connection', (ws) => {
         players: [...players.values()],
         furniture: FURNITURE,
       }));
+
+      broadcast({
+        type: 'player_joined',
+        id: ws.id,
+        name,
+        appearance: message.appearance,
+        x: player.x,
+        y: player.y,
+      }, ws.id);
+    } else if (message.type === 'move') {
+      const player = players.get(ws.id);
+      if (!player) return;
+
+      player.x = clamp(Number(message.x), 0, ROOM_WIDTH - CHAR_WIDTH);
+      player.y = clamp(Number(message.y), 0, ROOM_HEIGHT - CHAR_HEIGHT);
+
+      broadcast({ type: 'player_moved', id: ws.id, x: player.x, y: player.y }, ws.id);
     }
   });
 
@@ -74,6 +108,9 @@ wss.on('connection', (ws) => {
     players.delete(ws.id);
     const label = player ? `${ws.id} (${player.name})` : ws.id;
     console.log(`[leave] ${label} disconnected (total: ${wss.clients.size})`);
+    if (player) {
+      broadcast({ type: 'player_left', id: ws.id }, ws.id);
+    }
   });
 });
 
