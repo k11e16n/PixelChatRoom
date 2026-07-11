@@ -37,13 +37,42 @@ const httpServer = createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({ server: httpServer });
+const players = new Map();
 
 wss.on('connection', (ws) => {
   ws.id = randomUUID();
   console.log(`[join] ${ws.id} connected (total: ${wss.clients.size})`);
 
+  ws.on('message', (data) => {
+    let message;
+    try {
+      message = JSON.parse(data);
+    } catch {
+      return;
+    }
+
+    if (message.type === 'join') {
+      const trimmedName = typeof message.name === 'string' ? message.name.trim() : '';
+      const name = trimmedName || `玩家${randomUUID().slice(0, 4)}`;
+      const player = { id: ws.id, name, appearance: message.appearance, x: 0, y: 0 };
+      players.set(ws.id, player);
+
+      console.log(`[player-join] ${ws.id} name="${name}" appearance=${JSON.stringify(message.appearance)}`);
+
+      ws.send(JSON.stringify({
+        type: 'room_state',
+        self_id: ws.id,
+        players: [...players.values()],
+        furniture: [],
+      }));
+    }
+  });
+
   ws.on('close', () => {
-    console.log(`[leave] ${ws.id} disconnected (total: ${wss.clients.size})`);
+    const player = players.get(ws.id);
+    players.delete(ws.id);
+    const label = player ? `${ws.id} (${player.name})` : ws.id;
+    console.log(`[leave] ${label} disconnected (total: ${wss.clients.size})`);
   });
 });
 

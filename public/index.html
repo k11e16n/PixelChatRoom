@@ -3,10 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <title>PixelChatRoom</title>
+  <style>
+    #preview {
+      image-rendering: pixelated;
+      width: 96px;
+      height: 128px;
+      border: 1px solid #999;
+    }
+  </style>
 </head>
 <body>
   <h1>PixelChatRoom</h1>
   <p id="status">連線中...</p>
+
+  <section id="character-select">
+    <canvas id="preview"></canvas>
+    <div>
+      <label>髮型 <select id="hair-select"></select></label>
+    </div>
+    <div>
+      <label>服裝 <select id="outfit-select"></select></label>
+    </div>
+    <div>
+      <label>顏色 <select id="color-select"></select></label>
+    </div>
+    <div>
+      <label>名稱 <input type="text" id="name-input" placeholder="玩家"></label>
+    </div>
+    <button id="join-button" disabled>進入房間</button>
+  </section>
+
+  <section id="room-placeholder" hidden>
+    <p id="room-info"></p>
+  </section>
+
   <script type="module" src="client.js"></script>
 </body>
 </html>
