@@ -7,6 +7,8 @@ const SPEED = 120; // px/sec
 const MOVE_SEND_INTERVAL = 50; // ms
 const BUBBLE_DURATION = 4500; // ms
 const BUBBLE_FADE_DURATION = 500; // ms
+const WALK_FRAME_INTERVAL = 150; // ms
+const IDLE_TIMEOUT = 200; // ms
 
 const FLOOR_COLOR = '#dcd3c0';
 const FURNITURE_FILL = '#8a6642';
@@ -41,12 +43,28 @@ function collidesAt(x, y) {
 }
 
 export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers = [], onMove }) {
-  const player = { x: DEFAULT_SPAWN.x, y: DEFAULT_SPAWN.y };
+  const player = {
+    x: DEFAULT_SPAWN.x,
+    y: DEFAULT_SPAWN.y,
+    facing: 'down',
+    frame: 0,
+    flip: false,
+    animTimer: 0,
+  };
   const pressed = new Set();
 
   const otherPlayers = new Map();
   for (const other of initialPlayers) {
-    otherPlayers.set(other.id, { name: other.name, appearance: other.appearance, x: other.x, y: other.y });
+    otherPlayers.set(other.id, {
+      name: other.name,
+      appearance: other.appearance,
+      x: other.x,
+      y: other.y,
+      facing: 'down',
+      frame: 0,
+      flip: false,
+      lastMoveAt: 0,
+    });
   }
 
   const bubbles = new Map();
@@ -69,6 +87,25 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
   function step(dt) {
     let dx = (pressed.has('right') ? 1 : 0) - (pressed.has('left') ? 1 : 0);
     let dy = (pressed.has('down') ? 1 : 0) - (pressed.has('up') ? 1 : 0);
+
+    if (dx !== 0 || dy !== 0) {
+      if (dy !== 0) {
+        player.facing = dy > 0 ? 'down' : 'up';
+        player.flip = false;
+      } else {
+        player.facing = 'side';
+        player.flip = dx < 0;
+      }
+
+      player.animTimer += dt * 1000;
+      if (player.animTimer >= WALK_FRAME_INTERVAL) {
+        player.animTimer = 0;
+        player.frame = player.frame === 0 ? 1 : 0;
+      }
+    } else {
+      player.frame = 0;
+      player.animTimer = 0;
+    }
 
     if (dx !== 0 && dy !== 0) {
       dx *= Math.SQRT1_2;
@@ -148,12 +185,21 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
     ctx.font = '8px sans-serif';
 
     for (const [id, other] of otherPlayers) {
-      drawCharacter(ctx, other.appearance, other.x, other.y, CHAR_PIXEL_SIZE);
+      const isIdle = performance.now() - other.lastMoveAt > IDLE_TIMEOUT;
+      drawCharacter(ctx, other.appearance, other.x, other.y, CHAR_PIXEL_SIZE, {
+        facing: other.facing,
+        frame: isIdle ? 0 : other.frame,
+        flip: other.flip,
+      });
       drawName(other.name, other.x, other.y);
       drawBubble(id, other.x, other.y);
     }
 
-    drawCharacter(ctx, selfAppearance, player.x, player.y, CHAR_PIXEL_SIZE);
+    drawCharacter(ctx, selfAppearance, player.x, player.y, CHAR_PIXEL_SIZE, {
+      facing: player.facing,
+      frame: player.frame,
+      flip: player.flip,
+    });
     drawName(selfName, player.x, player.y);
     drawBubble(selfId, player.x, player.y);
   }
@@ -185,14 +231,38 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
 
   return {
     addPlayer(id, name, appearance, x, y) {
-      otherPlayers.set(id, { name, appearance, x, y });
+      otherPlayers.set(id, {
+        name,
+        appearance,
+        x,
+        y,
+        facing: 'down',
+        frame: 0,
+        flip: false,
+        lastMoveAt: 0,
+      });
     },
     updatePlayerPosition(id, x, y) {
       const other = otherPlayers.get(id);
-      if (other) {
-        other.x = x;
-        other.y = y;
+      if (!other) return;
+
+      const dx = x - other.x;
+      const dy = y - other.y;
+
+      if (dx !== 0 || dy !== 0) {
+        if (dy !== 0) {
+          other.facing = dy > 0 ? 'down' : 'up';
+          other.flip = false;
+        } else {
+          other.facing = 'side';
+          other.flip = dx < 0;
+        }
+        other.frame = other.frame === 0 ? 1 : 0;
+        other.lastMoveAt = performance.now();
       }
+
+      other.x = x;
+      other.y = y;
     },
     removePlayer(id) {
       otherPlayers.delete(id);
