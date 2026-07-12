@@ -1,4 +1,4 @@
-import { drawCharacter, GRID_W, GRID_H } from './character.js';
+import { drawCharacter, shade, GRID_W, GRID_H } from './character.js';
 import { ROOM_WIDTH, ROOM_HEIGHT, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE } from './room-config.js';
 
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
@@ -11,8 +11,10 @@ const WALK_FRAME_INTERVAL = 150; // ms
 const IDLE_TIMEOUT = 200; // ms
 
 const FLOOR_COLOR = '#dcd3c0';
+const floorDitherColor = shade(FLOOR_COLOR, 0.92);
+const FLOOR_DITHER_CELL = 4;
 const FURNITURE_FILL = '#8a6642';
-const FURNITURE_STROKE = '#5c4429';
+const OUTLINE_COLOR = '#161616';
 const BUBBLE_FILL = '#ffffff';
 const BUBBLE_STROKE = '#1a1a1a';
 const BUBBLE_TEXT_COLOR = '#1a1a1a';
@@ -40,6 +42,33 @@ function rectsOverlap(a, b) {
 function collidesAt(x, y) {
   const box = { x, y, w: CHAR_WIDTH, h: CHAR_HEIGHT };
   return FURNITURE.some((furniture) => rectsOverlap(box, furniture));
+}
+
+function drawDitheredFloor(ctx, w, h, colorA, colorB, cellSize) {
+  const cols = Math.ceil(w / cellSize);
+  const rows = Math.ceil(h / cellSize);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      ctx.fillStyle = (row + col) % 2 === 0 ? colorA : colorB;
+      ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+    }
+  }
+}
+
+function drawShadedRect(ctx, x, y, w, h, baseColor) {
+  const highlight = shade(baseColor, 1.25);
+  const shadow = shade(baseColor, 0.7);
+  const bandHeight = Math.max(1, Math.round(h / 3));
+
+  ctx.fillStyle = OUTLINE_COLOR;
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = highlight;
+  ctx.fillRect(x + 1, y + 1, w - 2, bandHeight);
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(x + 1, y + 1 + bandHeight, w - 2, h - 2 * bandHeight - 2);
+  ctx.fillStyle = shadow;
+  ctx.fillRect(x + 1, y + h - 1 - bandHeight, w - 2, bandHeight);
 }
 
 export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers = [], onMove }) {
@@ -172,14 +201,10 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
   }
 
   function render() {
-    ctx.fillStyle = FLOOR_COLOR;
-    ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
+    drawDitheredFloor(ctx, ROOM_WIDTH, ROOM_HEIGHT, FLOOR_COLOR, floorDitherColor, FLOOR_DITHER_CELL);
 
-    ctx.fillStyle = FURNITURE_FILL;
-    ctx.strokeStyle = FURNITURE_STROKE;
     for (const { x, y, w, h } of FURNITURE) {
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      drawShadedRect(ctx, x, y, w, h, FURNITURE_FILL);
     }
 
     ctx.font = '8px sans-serif';
