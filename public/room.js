@@ -18,11 +18,17 @@ const BUBBLE_PADDING_X = 4;
 const BUBBLE_HEIGHT = 12;
 const BUBBLE_GAP = 4;
 
+const NAME_FONT = '8px sans-serif';
+const NAME_TEXT_COLOR = '#ffffff';
+const NAME_STROKE_COLOR = '#1a1a1a';
+const NAME_GAP = 2;
+const NAME_RESERVED_HEIGHT = 10;
+
 const MOVE_KEYS = {
-  KeyW: 'up', ArrowUp: 'up',
-  KeyS: 'down', ArrowDown: 'down',
-  KeyA: 'left', ArrowLeft: 'left',
-  KeyD: 'right', ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
 };
 
 function rectsOverlap(a, b) {
@@ -34,13 +40,13 @@ function collidesAt(x, y) {
   return FURNITURE.some((furniture) => rectsOverlap(box, furniture));
 }
 
-export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onMove }) {
+export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers = [], onMove }) {
   const player = { x: DEFAULT_SPAWN.x, y: DEFAULT_SPAWN.y };
   const pressed = new Set();
 
   const otherPlayers = new Map();
   for (const other of initialPlayers) {
-    otherPlayers.set(other.id, { appearance: other.appearance, x: other.x, y: other.y });
+    otherPlayers.set(other.id, { name: other.name, appearance: other.appearance, x: other.x, y: other.y });
   }
 
   const bubbles = new Map();
@@ -50,6 +56,7 @@ export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onM
   let lastSentY = player.y;
 
   window.addEventListener('keydown', (event) => {
+    if (document.activeElement?.tagName === 'INPUT') return;
     const direction = MOVE_KEYS[event.code];
     if (direction) pressed.add(direction);
   });
@@ -81,6 +88,22 @@ export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onM
     }
   }
 
+  function drawName(name, x, y) {
+    if (!name) return;
+
+    const centerX = x + CHAR_WIDTH / 2;
+    const baselineY = y - NAME_GAP;
+
+    ctx.font = NAME_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = NAME_STROKE_COLOR;
+    ctx.strokeText(name, centerX, baselineY);
+    ctx.fillStyle = NAME_TEXT_COLOR;
+    ctx.fillText(name, centerX, baselineY);
+  }
+
   function drawBubble(id, x, y) {
     const bubble = bubbles.get(id);
     if (!bubble) return;
@@ -96,7 +119,7 @@ export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onM
     const boxWidth = textWidth + BUBBLE_PADDING_X * 2;
     const centerX = x + CHAR_WIDTH / 2;
     const boxX = Math.min(Math.max(centerX - boxWidth / 2, 0), ROOM_WIDTH - boxWidth);
-    const boxY = y - BUBBLE_HEIGHT - BUBBLE_GAP;
+    const boxY = y - BUBBLE_HEIGHT - BUBBLE_GAP - NAME_RESERVED_HEIGHT;
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -126,10 +149,12 @@ export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onM
 
     for (const [id, other] of otherPlayers) {
       drawCharacter(ctx, other.appearance, other.x, other.y, CHAR_PIXEL_SIZE);
+      drawName(other.name, other.x, other.y);
       drawBubble(id, other.x, other.y);
     }
 
     drawCharacter(ctx, selfAppearance, player.x, player.y, CHAR_PIXEL_SIZE);
+    drawName(selfName, player.x, player.y);
     drawBubble(selfId, player.x, player.y);
   }
 
@@ -159,8 +184,8 @@ export function initRoom({ ctx, selfAppearance, selfId, initialPlayers = [], onM
   requestAnimationFrame(loop);
 
   return {
-    addPlayer(id, appearance, x, y) {
-      otherPlayers.set(id, { appearance, x, y });
+    addPlayer(id, name, appearance, x, y) {
+      otherPlayers.set(id, { name, appearance, x, y });
     },
     updatePlayerPosition(id, x, y) {
       const other = otherPlayers.get(id);

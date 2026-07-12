@@ -37,17 +37,19 @@ socket.onmessage = (event) => {
 
   if (message.type === 'room_state') {
     selfId = message.self_id;
+    const selfPlayer = message.players.find((p) => p.id === message.self_id);
     hideCharacterSelect();
     roomPlaceholder.hidden = false;
     roomHandle = initRoom({
       ctx: roomCanvas.getContext('2d'),
       selfAppearance: pendingAppearance,
       selfId,
+      selfName: selfPlayer?.name,
       initialPlayers: message.players.filter((p) => p.id !== message.self_id),
       onMove: (x, y) => socket.send(JSON.stringify({ type: 'move', x, y })),
     });
   } else if (message.type === 'player_joined') {
-    roomHandle?.addPlayer(message.id, message.appearance, message.x, message.y);
+    roomHandle?.addPlayer(message.id, message.name, message.appearance, message.x, message.y);
   } else if (message.type === 'player_moved') {
     roomHandle?.updatePlayerPosition(message.id, message.x, message.y);
   } else if (message.type === 'player_left') {

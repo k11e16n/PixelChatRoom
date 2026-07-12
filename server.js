@@ -14,6 +14,14 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function nextDefaultName() {
+  for (let n = 1; n <= MAX_PLAYERS; n++) {
+    const candidate = `玩家${n}`;
+    if (![...players.values()].some((p) => p.name === candidate)) return candidate;
+  }
+  return `玩家${players.size + 1}`;
+}
+
 const PORT = 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -79,7 +87,7 @@ wss.on('connection', (ws) => {
 
     if (message.type === 'join') {
       const trimmedName = typeof message.name === 'string' ? message.name.trim() : '';
-      const name = trimmedName || `玩家${randomUUID().slice(0, 4)}`;
+      const name = trimmedName || nextDefaultName();
       const player = { id: ws.id, name, appearance: message.appearance, ...DEFAULT_SPAWN };
       players.set(ws.id, player);
 
