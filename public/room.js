@@ -1,5 +1,8 @@
 import { drawCharacter, shade, getFacing, GRID_W, GRID_H } from './character.js';
-import { ROOM_WIDTH, ROOM_HEIGHT, ROOM_BOUNDS, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE } from './room-config.js';
+import {
+  ROOM_WIDTH, ROOM_HEIGHT, ROOM_BOUNDS, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE,
+  WALL_THICKNESS_TOP, WALL_THICKNESS_SIDE, WINDOWS, DOOR,
+} from './room-config.js';
 
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
 const CHAR_HEIGHT = GRID_H * CHAR_PIXEL_SIZE;
@@ -161,24 +164,97 @@ export function drawTable(ctx, x, y, w, h, baseColor) {
   drawShadedRect(ctx, x, y, w, h, baseColor);
 }
 
-export function drawSofa(ctx, x, y, w, h, baseColor) {
-  const backHeight = Math.round(h * 0.35);
-
-  drawShadedRect(ctx, x, y, w, backHeight, shade(baseColor, 1.1));
-  drawShadedRect(ctx, x, y + backHeight, w, h - backHeight, baseColor);
-
-  ctx.fillStyle = OUTLINE_COLOR;
+// backSide picks which edge the backrest sits on, so sofas can be arranged
+// in an L (one facing up against the bottom wall, one facing left against
+// the right wall) instead of only ever facing the same direction.
+export function drawSofa(ctx, x, y, w, h, baseColor, backSide = 'top') {
+  const backColor = shade(baseColor, 1.1);
   const seams = 2;
-  for (let i = 1; i <= seams; i++) {
-    const seamX = x + (w / (seams + 1)) * i;
-    ctx.fillRect(seamX, y + backHeight + 2, 1, h - backHeight - 4);
+  ctx.fillStyle = OUTLINE_COLOR;
+
+  if (backSide === 'left' || backSide === 'right') {
+    const backWidth = Math.round(w * 0.35);
+    if (backSide === 'left') {
+      drawShadedRect(ctx, x, y, backWidth, h, backColor);
+      drawShadedRect(ctx, x + backWidth, y, w - backWidth, h, baseColor);
+    } else {
+      drawShadedRect(ctx, x, y, w - backWidth, h, baseColor);
+      drawShadedRect(ctx, x + w - backWidth, y, backWidth, h, backColor);
+    }
+    for (let i = 1; i <= seams; i++) {
+      const seamY = y + (h / (seams + 1)) * i;
+      ctx.fillRect(x + 2, seamY, w - 4, 1);
+    }
+  } else {
+    const backHeight = Math.round(h * 0.35);
+    if (backSide === 'bottom') {
+      drawShadedRect(ctx, x, y, w, h - backHeight, baseColor);
+      drawShadedRect(ctx, x, y + h - backHeight, w, backHeight, backColor);
+    } else {
+      drawShadedRect(ctx, x, y, w, backHeight, backColor);
+      drawShadedRect(ctx, x, y + backHeight, w, h - backHeight, baseColor);
+    }
+    for (let i = 1; i <= seams; i++) {
+      const seamX = x + (w / (seams + 1)) * i;
+      ctx.fillRect(seamX, y + 2, 1, h - 4);
+    }
   }
+}
+
+// A small chair for the dining set — the backrest sits on whichever edge
+// faces away from the table, so chairs on opposite sides of a table look
+// like they're facing each other.
+export function drawChair(ctx, x, y, w, h, baseColor, backSide = 'top') {
+  const backThickness = Math.round(Math.min(w, h) * 0.35);
+  const backColor = shade(baseColor, 1.1);
+
+  if (backSide === 'bottom') {
+    drawShadedRect(ctx, x, y, w, h - backThickness, baseColor);
+    drawShadedRect(ctx, x, y + h - backThickness, w, backThickness, backColor);
+  } else {
+    drawShadedRect(ctx, x, y, w, backThickness, backColor);
+    drawShadedRect(ctx, x, y + backThickness, w, h - backThickness, baseColor);
+  }
+}
+
+const WINDOW_FRAME_COLOR = '#6b4a2f';
+const WINDOW_GLASS_COLOR = '#a8d8e8';
+const DOOR_COLOR = '#5c3d24';
+const DOOR_PANEL_COLOR = shade(DOOR_COLOR, 1.2);
+const DOOR_HANDLE_COLOR = '#d9b45c';
+
+export function drawWindow(ctx, x, w, wallThickness) {
+  const inset = 4;
+  const glassY = inset;
+  const glassH = wallThickness - inset * 2;
+
+  ctx.fillStyle = WINDOW_FRAME_COLOR;
+  ctx.fillRect(x, glassY - 1, w, glassH + 2);
+
+  ctx.fillStyle = WINDOW_GLASS_COLOR;
+  ctx.fillRect(x + 1, glassY, w - 2, glassH);
+
+  ctx.fillStyle = WINDOW_FRAME_COLOR;
+  ctx.fillRect(x + Math.round(w / 2) - 1, glassY, 2, glassH);
+  ctx.fillRect(x + 1, glassY + Math.round(glassH / 2) - 1, w - 2, 2);
+}
+
+export function drawDoor(ctx, x, w, wallY, wallThickness) {
+  ctx.fillStyle = DOOR_COLOR;
+  ctx.fillRect(x, wallY, w, wallThickness);
+
+  ctx.fillStyle = DOOR_PANEL_COLOR;
+  ctx.fillRect(x + 2, wallY + 2, w - 4, wallThickness - 4);
+
+  ctx.fillStyle = DOOR_HANDLE_COLOR;
+  ctx.fillRect(x + w - 10, wallY + Math.round(wallThickness / 2) - 1, 3, 3);
 }
 
 const FURNITURE_DRAWERS = {
   bookshelf: drawBookshelf,
   table: drawTable,
   sofa: drawSofa,
+  chair: drawChair,
 };
 
 export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers = [], onMove }) {
@@ -310,6 +386,9 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
     drawSeamRect(ctx, 0, 0, ROOM_WIDTH, ROOM_HEIGHT, WALL_COLOR, wallSeamColor, WALL_TILE_W, WALL_TILE_H);
     drawRoomBorder(ctx, ROOM_WIDTH, ROOM_HEIGHT, ROOM_BORDER_THICKNESS);
 
+    for (const win of WINDOWS) drawWindow(ctx, win.x, win.w, WALL_THICKNESS_TOP);
+    drawDoor(ctx, DOOR.x, DOOR.w, ROOM_HEIGHT - WALL_THICKNESS_SIDE, WALL_THICKNESS_SIDE);
+
     const { minX, minY, maxX, maxY } = ROOM_BOUNDS;
     const floorX = minX - BASEBOARD_THICKNESS;
     const floorY = minY - BASEBOARD_THICKNESS;
@@ -321,9 +400,9 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
 
     drawSeamRect(ctx, minX, minY, maxX - minX, maxY - minY, FLOOR_COLOR, floorSeamColor, FLOOR_TILE_SIZE, FLOOR_TILE_SIZE);
 
-    for (const { type, x, y, w, h } of FURNITURE) {
-      const draw = FURNITURE_DRAWERS[type] ?? drawShadedRect;
-      draw(ctx, x, y, w, h, FURNITURE_FILL);
+    for (const item of FURNITURE) {
+      const draw = FURNITURE_DRAWERS[item.type] ?? drawShadedRect;
+      draw(ctx, item.x, item.y, item.w, item.h, FURNITURE_FILL, item.backSide);
     }
 
     ctx.font = '8px sans-serif';
