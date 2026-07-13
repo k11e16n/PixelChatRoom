@@ -1,5 +1,5 @@
-import { drawCharacter, shade, GRID_W, GRID_H } from './character.js';
-import { ROOM_WIDTH, ROOM_HEIGHT, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE } from './room-config.js';
+import { drawCharacter, shade, getFacing, GRID_W, GRID_H } from './character.js';
+import { ROOM_WIDTH, ROOM_HEIGHT, ROOM_BOUNDS, FURNITURE, DEFAULT_SPAWN, CHAR_PIXEL_SIZE } from './room-config.js';
 
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
 const CHAR_HEIGHT = GRID_H * CHAR_PIXEL_SIZE;
@@ -10,11 +10,23 @@ const BUBBLE_FADE_DURATION = 500; // ms
 const WALK_FRAME_INTERVAL = 150; // ms
 const IDLE_TIMEOUT = 200; // ms
 
-const FLOOR_COLOR = '#dcd3c0';
-const floorDitherColor = shade(FLOOR_COLOR, 0.92);
-const FLOOR_DITHER_CELL = 4;
-const FURNITURE_FILL = '#8a6642';
-const OUTLINE_COLOR = '#161616';
+export const FLOOR_COLOR = '#c9a876';
+export const floorSeamColor = shade(FLOOR_COLOR, 0.8);
+export const FLOOR_TILE_SIZE = 16;
+export const FURNITURE_FILL = '#8a6642';
+export const OUTLINE_COLOR = '#161616';
+export const ROOM_BORDER_THICKNESS = 2;
+
+export const WALL_COLOR = '#7a8a99';
+export const wallSeamColor = shade(WALL_COLOR, 0.8);
+export const WALL_TILE_W = 24;
+export const WALL_TILE_H = 12;
+export const BASEBOARD_COLOR = shade(WALL_COLOR, 0.5);
+export const BASEBOARD_THICKNESS = 2;
+
+const BOOK_COLORS = ['#e63946', '#2a9d8f', '#457b9d', '#f4a261', '#8338ec'];
+const BOOK_WIDTHS = [3, 4, 3, 5, 4];
+const BOOK_HEIGHT_INSETS = [0, 2, 1, 0, 3];
 const BUBBLE_FILL = '#ffffff';
 const BUBBLE_STROKE = '#1a1a1a';
 const BUBBLE_TEXT_COLOR = '#1a1a1a';
@@ -44,32 +56,130 @@ function collidesAt(x, y) {
   return FURNITURE.some((furniture) => rectsOverlap(box, furniture));
 }
 
-function drawDitheredFloor(ctx, w, h, colorA, colorB, cellSize) {
-  const cols = Math.ceil(w / cellSize);
-  const rows = Math.ceil(h / cellSize);
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      ctx.fillStyle = (row + col) % 2 === 0 ? colorA : colorB;
-      ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
-    }
+export function drawSeamRect(ctx, x, y, w, h, baseColor, seamColor, tileW, tileH) {
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = seamColor;
+  for (let gx = tileW; gx < w; gx += tileW) {
+    ctx.fillRect(x + gx, y, 1, h);
+  }
+  for (let gy = tileH; gy < h; gy += tileH) {
+    ctx.fillRect(x, y + gy, w, 1);
   }
 }
 
-function drawShadedRect(ctx, x, y, w, h, baseColor) {
+export function drawRoomBorder(ctx, w, h, thickness) {
+  ctx.fillStyle = OUTLINE_COLOR;
+  ctx.fillRect(0, 0, w, thickness);
+  ctx.fillRect(0, h - thickness, w, thickness);
+  ctx.fillRect(0, 0, thickness, h);
+  ctx.fillRect(w - thickness, 0, thickness, h);
+}
+
+// Unified light source: top-left highlight, bottom-right shadow, for every
+// flat rectangular object (furniture bodies). Cylindrical parts (table legs)
+// use their own left/right shading — see drawTableLeg.
+export function drawShadedRect(ctx, x, y, w, h, baseColor) {
   const highlight = shade(baseColor, 1.25);
   const shadow = shade(baseColor, 0.7);
-  const bandHeight = Math.max(1, Math.round(h / 3));
+  const edge = Math.max(1, Math.round(Math.min(w, h) * 0.18));
 
   ctx.fillStyle = OUTLINE_COLOR;
   ctx.fillRect(x, y, w, h);
 
-  ctx.fillStyle = highlight;
-  ctx.fillRect(x + 1, y + 1, w - 2, bandHeight);
   ctx.fillStyle = baseColor;
-  ctx.fillRect(x + 1, y + 1 + bandHeight, w - 2, h - 2 * bandHeight - 2);
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+
+  ctx.fillStyle = highlight;
+  ctx.fillRect(x + 1, y + 1, w - 2, edge);
+  ctx.fillRect(x + 1, y + 1, edge, h - 2);
+
   ctx.fillStyle = shadow;
-  ctx.fillRect(x + 1, y + h - 1 - bandHeight, w - 2, bandHeight);
+  ctx.fillRect(x + 1, y + h - 1 - edge, w - 2, edge);
+  ctx.fillRect(x + w - 1 - edge, y + 1, edge, h - 2);
 }
+
+export function drawBookshelf(ctx, x, y, w, h, baseColor) {
+  drawShadedRect(ctx, x, y, w, h, baseColor);
+
+  const shelfCount = 3;
+  const shelfGap = h / (shelfCount + 1);
+
+  ctx.fillStyle = OUTLINE_COLOR;
+  for (let i = 1; i <= shelfCount; i++) {
+    ctx.fillRect(x + 1, y + shelfGap * i, w - 2, 1);
+  }
+
+  const bookGap = 1;
+  let colorIndex = 0;
+  for (let i = 0; i <= shelfCount; i++) {
+    const segTop = y + (i === 0 ? 2 : shelfGap * i + 1);
+    const segBottom = y + (i === shelfCount ? h - 2 : shelfGap * (i + 1));
+    const segHeight = segBottom - segTop;
+    if (segHeight < 4) continue;
+
+    let bx = x + 2;
+    while (bx + 2 <= x + w - 2) {
+      const bookWidth = BOOK_WIDTHS[colorIndex % BOOK_WIDTHS.length];
+      if (bx + bookWidth > x + w - 2) break;
+
+      const heightInset = BOOK_HEIGHT_INSETS[colorIndex % BOOK_HEIGHT_INSETS.length];
+      const bookHeight = Math.max(2, segHeight - heightInset);
+
+      ctx.fillStyle = BOOK_COLORS[colorIndex % BOOK_COLORS.length];
+      ctx.fillRect(bx, segTop, bookWidth, bookHeight);
+      bx += bookWidth + bookGap;
+      colorIndex++;
+    }
+  }
+}
+
+function drawTableLeg(ctx, x, y, size, baseColor) {
+  const highlight = shade(baseColor, 1.45);
+  const shadow = shade(baseColor, 0.5);
+  const third = Math.max(1, Math.round(size / 3));
+
+  ctx.fillStyle = OUTLINE_COLOR;
+  ctx.fillRect(x, y, size, size);
+
+  ctx.fillStyle = highlight;
+  ctx.fillRect(x + 1, y + 1, third, size - 2);
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(x + 1 + third, y + 1, size - 2 * third - 2, size - 2);
+  ctx.fillStyle = shadow;
+  ctx.fillRect(x + size - third - 1, y + 1, third, size - 2);
+}
+
+export function drawTable(ctx, x, y, w, h, baseColor) {
+  const legSize = Math.max(3, Math.round(h * 0.3));
+  const legInset = Math.max(2, Math.round(w * 0.08));
+
+  drawTableLeg(ctx, x + legInset, y + h, legSize, baseColor);
+  drawTableLeg(ctx, x + w - legInset - legSize, y + h, legSize, baseColor);
+
+  drawShadedRect(ctx, x, y, w, h, baseColor);
+}
+
+export function drawSofa(ctx, x, y, w, h, baseColor) {
+  const backHeight = Math.round(h * 0.35);
+
+  drawShadedRect(ctx, x, y, w, backHeight, shade(baseColor, 1.1));
+  drawShadedRect(ctx, x, y + backHeight, w, h - backHeight, baseColor);
+
+  ctx.fillStyle = OUTLINE_COLOR;
+  const seams = 2;
+  for (let i = 1; i <= seams; i++) {
+    const seamX = x + (w / (seams + 1)) * i;
+    ctx.fillRect(seamX, y + backHeight + 2, 1, h - backHeight - 4);
+  }
+}
+
+const FURNITURE_DRAWERS = {
+  bookshelf: drawBookshelf,
+  table: drawTable,
+  sofa: drawSofa,
+};
 
 export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers = [], onMove }) {
   const player = {
@@ -118,13 +228,9 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
     let dy = (pressed.has('down') ? 1 : 0) - (pressed.has('up') ? 1 : 0);
 
     if (dx !== 0 || dy !== 0) {
-      if (dy !== 0) {
-        player.facing = dy > 0 ? 'down' : 'up';
-        player.flip = false;
-      } else {
-        player.facing = 'side';
-        player.flip = dx < 0;
-      }
+      const facing = getFacing(dx, dy);
+      player.facing = facing.facing;
+      player.flip = facing.flip;
 
       player.animTimer += dt * 1000;
       if (player.animTimer >= WALK_FRAME_INTERVAL) {
@@ -144,12 +250,12 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
     const distance = SPEED * dt;
 
     if (dx !== 0) {
-      const nextX = Math.min(Math.max(player.x + dx * distance, 0), ROOM_WIDTH - CHAR_WIDTH);
+      const nextX = Math.min(Math.max(player.x + dx * distance, ROOM_BOUNDS.minX), ROOM_BOUNDS.maxX - CHAR_WIDTH);
       if (!collidesAt(nextX, player.y)) player.x = nextX;
     }
 
     if (dy !== 0) {
-      const nextY = Math.min(Math.max(player.y + dy * distance, 0), ROOM_HEIGHT - CHAR_HEIGHT);
+      const nextY = Math.min(Math.max(player.y + dy * distance, ROOM_BOUNDS.minY), ROOM_BOUNDS.maxY - CHAR_HEIGHT);
       if (!collidesAt(player.x, nextY)) player.y = nextY;
     }
   }
@@ -201,10 +307,23 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
   }
 
   function render() {
-    drawDitheredFloor(ctx, ROOM_WIDTH, ROOM_HEIGHT, FLOOR_COLOR, floorDitherColor, FLOOR_DITHER_CELL);
+    drawSeamRect(ctx, 0, 0, ROOM_WIDTH, ROOM_HEIGHT, WALL_COLOR, wallSeamColor, WALL_TILE_W, WALL_TILE_H);
+    drawRoomBorder(ctx, ROOM_WIDTH, ROOM_HEIGHT, ROOM_BORDER_THICKNESS);
 
-    for (const { x, y, w, h } of FURNITURE) {
-      drawShadedRect(ctx, x, y, w, h, FURNITURE_FILL);
+    const { minX, minY, maxX, maxY } = ROOM_BOUNDS;
+    const floorX = minX - BASEBOARD_THICKNESS;
+    const floorY = minY - BASEBOARD_THICKNESS;
+    const floorW = maxX - minX + BASEBOARD_THICKNESS * 2;
+    const floorH = maxY - minY + BASEBOARD_THICKNESS * 2;
+
+    ctx.fillStyle = BASEBOARD_COLOR;
+    ctx.fillRect(floorX, floorY, floorW, floorH);
+
+    drawSeamRect(ctx, minX, minY, maxX - minX, maxY - minY, FLOOR_COLOR, floorSeamColor, FLOOR_TILE_SIZE, FLOOR_TILE_SIZE);
+
+    for (const { type, x, y, w, h } of FURNITURE) {
+      const draw = FURNITURE_DRAWERS[type] ?? drawShadedRect;
+      draw(ctx, x, y, w, h, FURNITURE_FILL);
     }
 
     ctx.font = '8px sans-serif';
@@ -275,13 +394,9 @@ export function initRoom({ ctx, selfAppearance, selfId, selfName, initialPlayers
       const dy = y - other.y;
 
       if (dx !== 0 || dy !== 0) {
-        if (dy !== 0) {
-          other.facing = dy > 0 ? 'down' : 'up';
-          other.flip = false;
-        } else {
-          other.facing = 'side';
-          other.flip = dx < 0;
-        }
+        const facing = getFacing(Math.sign(dx), Math.sign(dy));
+        other.facing = facing.facing;
+        other.flip = facing.flip;
         other.frame = other.frame === 0 ? 1 : 0;
         other.lastMoveAt = performance.now();
       }

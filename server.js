@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { FURNITURE, DEFAULT_SPAWN, ROOM_WIDTH, ROOM_HEIGHT, CHAR_PIXEL_SIZE, MAX_PLAYERS } from './public/room-config.js';
+import { FURNITURE, DEFAULT_SPAWN, ROOM_BOUNDS, CHAR_PIXEL_SIZE, MAX_PLAYERS } from './public/room-config.js';
 import { GRID_W, GRID_H } from './public/character.js';
 
 const CHAR_WIDTH = GRID_W * CHAR_PIXEL_SIZE;
@@ -112,8 +112,8 @@ wss.on('connection', (ws) => {
       const player = players.get(ws.id);
       if (!player) return;
 
-      player.x = clamp(Number(message.x), 0, ROOM_WIDTH - CHAR_WIDTH);
-      player.y = clamp(Number(message.y), 0, ROOM_HEIGHT - CHAR_HEIGHT);
+      player.x = clamp(Number(message.x), ROOM_BOUNDS.minX, ROOM_BOUNDS.maxX - CHAR_WIDTH);
+      player.y = clamp(Number(message.y), ROOM_BOUNDS.minY, ROOM_BOUNDS.maxY - CHAR_HEIGHT);
 
       broadcast({ type: 'player_moved', id: ws.id, x: player.x, y: player.y }, ws.id);
     } else if (message.type === 'chat') {
