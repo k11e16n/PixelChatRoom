@@ -66,9 +66,15 @@ const HEAD_UP = [
 ];
 
 // Same round silhouette as HEAD_DOWN/HEAD_UP (head proportions must match
-// across every facing) — only the eye row changes, to a single eye near the
-// facing edge instead of two centered eyes.
-const HEAD_SIDE = HEAD_DOWN.map((row, i) => (i === 5 ? '..' + '1'.repeat(17) + '2' + '11' + '..' : row));
+// across every facing). Two changes from the shared shape: a single eye near
+// the facing edge instead of two centered eyes, and a small ear bump (rows
+// 6-7) poking out on that same edge, since a turned head should show an ear.
+const HEAD_SIDE = HEAD_DOWN.map((row, i) => {
+  if (i === 5) return '..' + '1'.repeat(17) + '2' + '11' + '..';
+  if (i === 6) return row.slice(0, 22) + '1' + row.slice(23);
+  if (i === 7) return row.slice(0, 21) + '1' + row.slice(22);
+  return row;
+});
 
 // NE (facing away + right): no eye, since we're mostly seeing the back of the head.
 const HEAD_DIAG_UP = HEAD_SIDE.map((row, i) => (i === 5 ? row.replace('2', '1') : row));
@@ -265,10 +271,14 @@ export const HAIR_STYLES = [
       '......111111111111......',
       '........11111111........',
     ]),
+    // Asymmetric: hair covers the back (left) side, leaving the facing (right)
+    // side open so the eye and ear stay visible — a turned head shouldn't
+    // show the same symmetric bangs as the front view.
     side: hairGrid([
       '........11111111........',
       '......111111111111......',
       '....1111111111111111....',
+      '....11111111............',
     ]),
   }),
   withDiagAliases({
@@ -298,14 +308,16 @@ export const HAIR_STYLES = [
       '.........111111.........',
       '.........111111.........',
     ]),
+    // Same asymmetric idea as the short style, but the back flap runs
+    // further down to read as long hair — still leaves the eye/ear open.
     side: hairGrid([
       '........11111111........',
       '......111111111111......',
       '....1111111111111111....',
-      '....11..................',
-      '....11..................',
-      '....11..................',
-      '....11..................',
+      '....11111111............',
+      '....11111111............',
+      '....11111111............',
+      '....11111111............',
     ]),
   }),
   withDiagAliases({

@@ -164,6 +164,64 @@ export function drawTable(ctx, x, y, w, h, baseColor) {
   drawShadedRect(ctx, x, y, w, h, baseColor);
 }
 
+const VASE_COLOR = '#6b7a8a';
+const STEM_COLOR = '#3d7a3d';
+const PETAL_COLOR = '#e88ab0';
+const PETAL_CENTER_COLOR = '#f4d35e';
+
+function drawVaseWithFlower(ctx, cx, cy) {
+  ctx.fillStyle = OUTLINE_COLOR;
+  ctx.fillRect(cx - 3, cy - 1, 6, 5);
+  ctx.fillStyle = VASE_COLOR;
+  ctx.fillRect(cx - 2, cy, 4, 3);
+  ctx.fillStyle = shade(VASE_COLOR, 1.3);
+  ctx.fillRect(cx - 2, cy, 1, 3);
+
+  ctx.fillStyle = STEM_COLOR;
+  ctx.fillRect(cx, cy - 4, 1, 4);
+
+  ctx.fillStyle = PETAL_COLOR;
+  ctx.fillRect(cx - 2, cy - 7, 5, 4);
+  ctx.fillStyle = PETAL_CENTER_COLOR;
+  ctx.fillRect(cx, cy - 6, 1, 1);
+}
+
+// A small round coffee table, rasterized as blocky cells (not a smooth
+// ctx.ellipse curve) so it still reads as pixel art like everything else,
+// with the same top-left-light/bottom-right-shadow convention as the
+// rectangular furniture. A tiny vase + flower sits in the center.
+export function drawRoundTable(ctx, x, y, w, h, baseColor) {
+  const highlight = shade(baseColor, 1.25);
+  const shadow = shade(baseColor, 0.7);
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const rx = w / 2;
+  const ry = h / 2;
+  const cell = 3;
+
+  for (let py = y; py < y + h; py += cell) {
+    for (let px = x; px < x + w; px += cell) {
+      const nx = (px + cell / 2 - cx) / rx;
+      const ny = (py + cell / 2 - cy) / ry;
+      const dist = nx * nx + ny * ny;
+      if (dist > 1) continue;
+
+      if (dist > 0.75) {
+        ctx.fillStyle = OUTLINE_COLOR;
+      } else if (nx + ny < -0.3) {
+        ctx.fillStyle = highlight;
+      } else if (nx + ny > 0.3) {
+        ctx.fillStyle = shadow;
+      } else {
+        ctx.fillStyle = baseColor;
+      }
+      ctx.fillRect(px, py, cell, cell);
+    }
+  }
+
+  drawVaseWithFlower(ctx, Math.round(cx), Math.round(cy));
+}
+
 // backSide picks which edge the backrest sits on, so sofas can be arranged
 // in an L (one facing up against the bottom wall, one facing left against
 // the right wall) instead of only ever facing the same direction.
@@ -253,6 +311,7 @@ export function drawDoor(ctx, x, w, wallY, wallThickness) {
 const FURNITURE_DRAWERS = {
   bookshelf: drawBookshelf,
   table: drawTable,
+  roundTable: drawRoundTable,
   sofa: drawSofa,
   chair: drawChair,
 };
