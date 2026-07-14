@@ -29,7 +29,7 @@ export const FURNITURE = [
   // Shifted right of the door (x:280-340) so the horizontal sofa doesn't block it.
   { type: 'sofa', x: 416, y: 400, w: 160, h: 50, backSide: 'bottom' },
   { type: 'sofa', x: 576, y: 250, w: 50, h: 150, backSide: 'right' },
-  { type: 'table', x: 460, y: 320, w: 60, h: 45 },
+  { type: 'roundTable', x: 460, y: 290, w: 60, h: 45 },
 ];
 
 export const WINDOWS = [

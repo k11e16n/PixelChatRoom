@@ -4,7 +4,7 @@ import {
   WALL_THICKNESS_TOP, WALL_THICKNESS_SIDE, WINDOWS, DOOR,
 } from './room-config.js';
 import {
-  drawSeamRect, drawRoomBorder, drawBookshelf, drawTable, drawSofa, drawChair, drawWindow, drawDoor,
+  drawSeamRect, drawRoomBorder, drawBookshelf, drawTable, drawRoundTable, drawSofa, drawChair, drawWindow, drawDoor,
   FLOOR_COLOR, floorSeamColor, FLOOR_TILE_SIZE,
   WALL_COLOR, wallSeamColor, WALL_TILE_W, WALL_TILE_H,
   BASEBOARD_COLOR, BASEBOARD_THICKNESS, ROOM_BORDER_THICKNESS,
@@ -12,7 +12,7 @@ import {
 } from './room.js';
 
 const SAMPLE_APPEARANCE = { hair: 0, outfit: 1, color: 2 };
-const FURNITURE_DRAWERS = { bookshelf: drawBookshelf, table: drawTable, sofa: drawSofa, chair: drawChair };
+const FURNITURE_DRAWERS = { bookshelf: drawBookshelf, table: drawTable, roundTable: drawRoundTable, sofa: drawSofa, chair: drawChair };
 
 // --- Room scene: exactly what the game renders, minus the WebSocket layer ---
 const roomCanvas = document.getElementById('room-canvas');
@@ -84,7 +84,7 @@ const furnitureCanvas = document.getElementById('furniture-canvas');
 const furnitureItems = [
   { type: 'bookshelf', w: 24, h: 80 },
   { type: 'table', w: 100, h: 50 },
-  { type: 'table', w: 60, h: 35 },
+  { type: 'roundTable', w: 60, h: 45 },
   { type: 'sofa', w: 160, h: 50, backSide: 'bottom' },
   { type: 'sofa', w: 50, h: 150, backSide: 'right' },
   { type: 'chair', w: 20, h: 20, backSide: 'top' },
